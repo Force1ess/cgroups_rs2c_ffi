@@ -1,4 +1,4 @@
-### Rust Cgroups Library
+### Rust Cgroups Library to C FFI
 
 This library provides a set of functions to manage control groups (cgroups) in Rust. Cgroups is a Linux kernel feature that limits, accounts for, and isolates the resource usage of a collection of processes.
 

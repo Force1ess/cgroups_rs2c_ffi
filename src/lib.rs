@@ -70,8 +70,8 @@ pub extern "C" fn add_pid(cgroup: *mut Cgroup, pid: u64) {
         &mut *cgroup
     };
     cgroup
-        .add_task(CgroupPid::from(pid))
-        .expect("Failed to add task to cgroup");
+        .add_task_by_tgid(CgroupPid::from(pid))
+        .expect(&format!("Failed to add task to cgroup for pid: {}", pid));
 }
 
 #[no_mangle]
@@ -127,7 +127,7 @@ mod tests {
         let cgroup = create_cgroup(group_name.as_ptr());
         assert!(!cgroup.is_null());
 
-        add_pid(cgroup, 12345); // Add a fake PID for testing purposes
+        add_pid(cgroup, std::process::id() as u64);
 
         // Clean up
         free_cgroup(cgroup);

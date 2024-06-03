@@ -36,6 +36,7 @@ int main() {
   }
 
   // Add current process to the cgroup
+  printf("Adding current process:%d to cgroup\n", getpid());
   add_pid(manager, getpid());
 
   // Set CPU limit to 10%
@@ -44,7 +45,7 @@ int main() {
 
   printf("Running CPU intensive task");
   for (volatile unsigned long i = 0; i < 1000000000UL; i++) {
-    // Busy loop
+    // Busy loopxx
   }
 
   // Set memory limit to 10KB
