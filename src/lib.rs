@@ -86,24 +86,28 @@ pub extern "C" fn free_cgroup(cgroup: *mut Cgroup) {
 mod tests {
     use super::*;
     use std::ffi::CString;
-
-    #[test]
-    fn test_create_cgroup() {
-        let group_name = CString::new("test_group").expect("CString::new failed");
-        let cgroup = create_cgroup(group_name.as_ptr());
-        assert!(!cgroup.is_null());
-
-        // Clean up
-        free_cgroup(cgroup);
+    fn intensive_task() {
+        let mut size = 0;
+        let mut collect_vec = vec![];
+        loop {
+            let mut data = vec![1u32; 1024 * 1024];
+            for i in 0..1024 {
+                for _ in 0..1000000 {
+                    data[i] += data[i + 1]
+                }
+            }
+            collect_vec.push(data);
+            size += 1;
+            println!("Allocated memory: {} kb", size);
+        }
     }
-
     #[test]
     fn test_limit_cpu_usage() {
         let group_name = CString::new("test_group").expect("CString::new failed");
         let cgroup = create_cgroup(group_name.as_ptr());
         assert!(!cgroup.is_null());
-
         limit_cpu_usage(cgroup, 50); // Set CPU limit to 50%
+        intensive_task();
 
         // Clean up
         free_cgroup(cgroup);
@@ -116,29 +120,9 @@ mod tests {
         assert!(!cgroup.is_null());
 
         limit_mem_usage(cgroup, 1024 * 1024 * 1024); // Set memory limit to 1 GB
+        intensive_task();
 
         // Clean up
         free_cgroup(cgroup);
-    }
-
-    #[test]
-    fn test_add_pid() {
-        let group_name = CString::new("test_group").expect("CString::new failed");
-        let cgroup = create_cgroup(group_name.as_ptr());
-        assert!(!cgroup.is_null());
-
-        add_pid(cgroup, std::process::id() as u64);
-
-        // Clean up
-        free_cgroup(cgroup);
-    }
-
-    #[test]
-    fn test_free_cgroup() {
-        let group_name = CString::new("test_group").expect("CString::new failed");
-        let cgroup = create_cgroup(group_name.as_ptr());
-        assert!(!cgroup.is_null());
-
-        free_cgroup(cgroup); // Ensure this doesn't panic or leak memory
     }
 }

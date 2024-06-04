@@ -13,51 +13,43 @@ extern void limit_mem_usage(struct Cgroup* cgroup, long max_memory);
 extern void add_pid(struct Cgroup* cgroup, unsigned long pid);
 extern void free_cgroup(struct Cgroup* cgroup);
 
-void mem_intensive_task() {
+void intensive_task() {
   size_t size = 0;
   while (1) {
-    void* mem = malloc(1024);  // Allocate 1KB
-    if (mem == NULL) {
+    int * data =  malloc(1024*1024);  // Allocate 1KB
+    if (data== NULL) {
       fprintf(stderr, "Memory allocation failed\n");
       break;
     }
-    size += 1024;
-    memset(mem, 0, 1024);  // Use the memory
-    printf("Allocated memory: %lu bytes\n", size);
-    sleep(1);  // Sleep for a second before next allocation
+    for(int i =0;i<1024;i++)
+    for(int j =0;j<1000000;j++)
+    data[i]+=data[i+1];
+    size += 1;
+    printf("Allocated memory: %lu kb \n", size);
   }
 }
 
 int main() {
-  struct Cgroup* manager = create_cgroup("my_cgroup");
-  if (manager == NULL) {
-    fprintf(stderr, "Failed to create cgroup manager\n");
-    return 1;
-  }
-
-  // Add current process to the cgroup
+  struct Cgroup* cgroup = create_cgroup("my_cgroup");
   printf("Adding current process:%d to cgroup\n", getpid());
-  add_pid(manager, getpid());
+  //add_pid(cgroup, getpid());
 
   // Set CPU limit to 10%
-  limit_cpu_usage(manager, 10);
+
+  //limit_cpu_usage(cgroup, 10);
   printf("Set CPU limit to 10%%\n");
 
   printf("Running CPU intensive task");
-  for (volatile unsigned long i = 0; i < 1000000000UL; i++) {
-    // Busy loopxx
-  }
-
   // Set memory limit to 10KB
-  limit_mem_usage(manager, 10 * 1024);
-  printf("Set memory limit to 10KB\n");
+  limit_mem_usage(cgroup, 10 * 1024);
+  //printf("Set memory limit to 10KB\n");
 
   // Run memory intensive task
-  printf("Running memory intensive task...\n");
-  mem_intensive_task();
+  //printf("Running memory intensive task...\n");
+  intensive_task();
 
-  // Free the cgroup manager
-  free_cgroup(manager);
+  // Free the cgroup cgroup
+  //free_cgroup(cgroup);
 
   return 0;
 }
