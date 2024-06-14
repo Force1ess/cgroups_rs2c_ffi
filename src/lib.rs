@@ -43,7 +43,7 @@ pub extern "C" fn limit_cpu_usage(cgroup: *mut Cgroup, max_cpu: i64) {
             }
         };
         cpu_controller
-            .set_cfs_quota(cfs_period * max_cpu)
+            .set_cfs_quota(cfs_period * max_cpu / 100)
             .expect("Failed to set cfs_quota");
     }
 }
@@ -55,7 +55,6 @@ pub extern "C" fn limit_mem_usage(cgroup: *mut Cgroup, max_memory: i64) {
         assert!(!cgroup.is_null());
         &mut *cgroup
     };
-
     if let Some(mem_controller) = cgroup.controller_of::<cgroups_rs::memory::MemController>() {
         mem_controller
             .set_limit(max_memory)
@@ -64,13 +63,14 @@ pub extern "C" fn limit_mem_usage(cgroup: *mut Cgroup, max_memory: i64) {
 }
 
 #[no_mangle]
-pub extern "C" fn add_pid(cgroup: *mut Cgroup, pid: u64) {
+pub extern "C" fn add_pid(cgroup: *mut Cgroup, pid: i32) {
     let cgroup = unsafe {
         assert!(!cgroup.is_null());
         &mut *cgroup
     };
+    println!("add_pid: {}", pid);
     cgroup
-        .add_task_by_tgid(CgroupPid::from(pid))
+        .add_task_by_tgid(CgroupPid::from(pid as u64))
         .expect(&format!("Failed to add task to cgroup for pid: {}", pid));
 }
 
@@ -78,7 +78,9 @@ pub extern "C" fn add_pid(cgroup: *mut Cgroup, pid: u64) {
 pub extern "C" fn free_cgroup(cgroup: *mut Cgroup) {
     if !cgroup.is_null() {
         unsafe {
-            drop(Box::from_raw(cgroup));
+            let cgroup = Box::from_raw(cgroup);
+            cgroup.kill().expect("Failed to kill tasks in cgroup");
+            cgroup.delete().expect("Failed to delete cgroup");
         }
     }
 }
@@ -91,38 +93,61 @@ mod tests {
         let mut collect_vec = vec![];
         loop {
             let mut data = vec![1u32; 1024 * 1024];
-            for i in 0..1024 {
-                for _ in 0..1000000 {
+            for i in 0..10 {
+                for _ in 0..100000 {
                     data[i] += data[i + 1]
                 }
             }
             collect_vec.push(data);
-            size += 1;
-            println!("Allocated memory: {} kb", size);
+            size += 4;
+            println!("Allocated memory: {} MB", size);
         }
     }
     #[test]
-    fn test_limit_cpu_usage() {
-        let group_name = CString::new("test_group").expect("CString::new failed");
+    fn test_all() {
+        let group_name = CString::new("all").expect("CString::new failed");
         let cgroup = create_cgroup(group_name.as_ptr());
+        add_pid(cgroup, std::process::id() as i32);
         assert!(!cgroup.is_null());
-        limit_cpu_usage(cgroup, 50); // Set CPU limit to 50%
+        limit_cpu_usage(cgroup, 50);
+        limit_mem_usage(cgroup, 1024 * 1024 * 10);
         intensive_task();
-
-        // Clean up
         free_cgroup(cgroup);
+    }
+    #[test]
+    fn test_limit_cpu_usage() {
+        let group_name = CString::new("fuck").expect("CString::new failed");
+        let cgroup = create_cgroup(group_name.as_ptr());
+        add_pid(cgroup, std::process::id() as i32);
+        limit_cpu_usage(cgroup, 50);
+        intensive_task();
     }
 
     #[test]
     fn test_limit_mem_usage() {
-        let group_name = CString::new("test_group").expect("CString::new failed");
+        let group_name = CString::new("mem").expect("CString::new failed");
+        let cgroup = create_cgroup(group_name.as_ptr());
+        add_pid(cgroup, std::process::id() as i32);
+        assert!(!cgroup.is_null());
+        limit_mem_usage(cgroup, 1024 * 1024 * 10); // Set memory limit to 1 GB
+        intensive_task();
+        free_cgroup(cgroup);
+    }
+    #[test]
+    fn get_pid() {
+        let group_name = CString::new("fuck").expect("CString::new failed");
+        let cgroup = unsafe { &mut *create_cgroup(group_name.as_ptr()) };
+        add_pid(cgroup, std::process::id() as i32);
+        let pid = cgroup.tasks().get(0).unwrap().pid;
+        assert_eq!(pid, std::process::id().into());
+        println!("pid: {}", pid);
+        println!("std process pid: {}", std::process::id());
+    }
+    #[test]
+    fn test_free_cgroup() {
+        let group_name = CString::new("free").expect("CString::new failed");
         let cgroup = create_cgroup(group_name.as_ptr());
         assert!(!cgroup.is_null());
-
-        limit_mem_usage(cgroup, 1024 * 1024 * 1024); // Set memory limit to 1 GB
-        intensive_task();
-
-        // Clean up
         free_cgroup(cgroup);
     }
 }
